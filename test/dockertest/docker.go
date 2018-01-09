@@ -26,12 +26,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
-
-	"camlistore.org/pkg/netutil"
 )
 
 /// runLongTest checks all the conditions for running a docker container
@@ -157,7 +156,7 @@ func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err err
 		return
 	}
 	addr := fmt.Sprintf("%s:%d", ip, port)
-	err = netutil.AwaitReachable(addr, timeout)
+	err = awaitReachable(addr, timeout)
 	return
 }
 
@@ -262,4 +261,17 @@ func sqlExecRetry(db *sql.DB, stmt string, maxTry int) (sql.Result, error) {
 		interval *= 2
 	}
 	return result, fmt.Errorf("failed %v times: %v", try, err)
+}
+
+func awaitReachable(addr string, maxWait time.Duration) error {
+	done := time.Now().Add(maxWait)
+	for time.Now().Before(done) {
+		c, err := net.Dial("tcp", addr)
+		if err == nil {
+			c.Close()
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("%v unreachable for %v", addr, maxWait)
 }
